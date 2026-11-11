@@ -78,4 +78,13 @@ class BonusAgentTests(unittest.TestCase):
         self.assertEqual(result['status'],'completed')
         self.assertEqual(len([x for x in result['trace'] if x.get('event')=='tool' and x.get('name')=='get_vercel_status']),2)
 
+    def test_detail_question_is_nudged_to_fetch_incident(self):
+        t=BonusTools()
+        args={'provider':'npm','incident_id':'cc0t2r4403sy'}
+        url=BonusTools().execute('get_incident_details',args)['url']
+        p=ScriptedProvider([call('a','get_npm_status',{}),final('npm bình thường'),call('b','get_incident_details',args),final('Nguồn: '+url)])
+        result=run_agent('Kiểm tra npm và nêu phạm vi incident',p,t,max_steps=6)
+        self.assertEqual(result['status'],'completed')
+        self.assertEqual(len([x for x in result['trace'] if x.get('event')=='tool' and x.get('name')=='get_incident_details']),1)
+
 if __name__=='__main__': unittest.main()

@@ -93,6 +93,9 @@ def run_agent(question, provider, tools, max_steps=6):
     seen_calls = {}
     attempts = {}
     retry_prompted = set()
+    executed_names = set()
+    observed_incident_ids = set()
+    detail_nudged = False
     fetched_incident_ids = set()
     linked_incident_ids = set()
 
@@ -131,6 +134,13 @@ def run_agent(question, provider, tools, max_steps=6):
                 retry_name = pending_retry[0][0]
                 retry_prompted.add(pending_retry[0])
                 messages.append({'role': 'user', 'content': f'Tool "{retry_name}" vẫn trả lỗi tạm thời (rate limit). Hãy thử lại cùng truy vấn (tối đa {RETRIABLE_RETRY_LIMIT} lần); nếu vẫn lỗi, nêu rõ provider đó KHÔNG xác định được (partial failure) rồi kết luận với dữ liệu đã có.'})
+                continue
+
+            if (getattr(tools, 'prefer_incident_details', False) and not detail_nudged
+                    and 'get_incident_details' not in executed_names and observed_incident_ids
+                    and any(k in question.lower() for k in ('phạm vi', 'chi tiết', 'timeline', 'đối chiếu', 'so sánh'))):
+                detail_nudged = True
+                messages.append({'role': 'user', 'content': 'Câu hỏi cần chi tiết/phạm vi của incident. Hãy gọi get_incident_details cho (các) incident liên quan đã thấy trong status để xác thực scope và URL trước khi trả lời.'})
                 continue
 
             answer = reply['message'].get('content') or ''
@@ -174,6 +184,15 @@ def run_agent(question, provider, tools, max_steps=6):
                     body = update.get('body', '')
                     for matched_id in re.findall(r'incidents/([a-zA-Z0-9]+)', body):
                         linked_incident_ids.add(matched_id)
+
+            if executed:
+                executed_names.add(name)
+            if isinstance(result, dict):
+                for incident in result.get('incidents') or []:
+                    if isinstance(incident, dict) and incident.get('id'):
+                        observed_incident_ids.add(incident['id'])
+                if name == 'get_incident_details' and result.get('ok') and result.get('id'):
+                    observed_incident_ids.add(result['id'])
 
             messages.append({'role': 'tool', 'tool_call_id': call.get('id'), 'content': json.dumps(result, ensure_ascii=False)})
             trace.append({'event': 'tool' if executed else 'tool_blocked', 'step': step, 'name': name, 'arguments': args, 'result': result})
