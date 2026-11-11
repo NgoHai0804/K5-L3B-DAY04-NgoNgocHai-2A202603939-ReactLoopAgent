@@ -86,7 +86,7 @@ def run_agent(question, provider, tools, max_steps=6):
     usage = []
     answer = ''
     observed_urls = set()
-    seen_calls = set()
+    seen_calls = {}
     fetched_incident_ids = set()
     linked_incident_ids = set()
 
@@ -136,14 +136,15 @@ def run_agent(question, provider, tools, max_steps=6):
                 result = {'ok': False, 'error': 'INVALID_ARGUMENTS', 'message': 'Arguments không phải JSON hợp lệ.'}
             else:
                 key = (name, json.dumps(args, sort_keys=True, ensure_ascii=False))
-                if key in seen_calls:
+                previous = seen_calls.get(key)
+                if previous is not None and not previous.get('retriable'):
                     result = {'ok': False, 'error': 'DUPLICATE_CALL', 'message': 'Tool call bị lặp; hãy thử cách khác hoặc trả lời với dữ liệu đã có.'}
                 else:
-                    seen_calls.add(key)
                     try:
                         result = tools.execute(name, args)
                     except Exception as exc:  # noqa: BLE001 - tool errors become observations
                         result = {'ok': False, 'error': type(exc).__name__, 'message': str(exc)[:200]}
+                    seen_calls[key] = result
 
             if name == 'get_incident_details' and isinstance(result, dict) and result.get('ok'):
                 if result.get('url'):
