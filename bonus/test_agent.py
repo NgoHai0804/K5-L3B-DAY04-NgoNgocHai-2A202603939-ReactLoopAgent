@@ -51,4 +51,31 @@ class BonusAgentTests(unittest.TestCase):
         self.assertEqual(json.loads(p.histories[1][-1]['content'])['error'],'INVALID_ARGUMENTS')
         self.assertTrue(json.loads(p.histories[2][-1]['content'])['ok'])
 
+    def test_retriable_retry_is_bounded(self):
+        t=BonusTools(scenario='rate_limit_always')
+        p=ScriptedProvider([call('a','get_vercel_status',{}),call('b','get_vercel_status',{}),call('c','get_vercel_status',{}),call('d','get_vercel_status',{}),final('Không xác định được trạng thái Vercel')])
+        result=run_agent('Kiểm tra Vercel',p,t,max_steps=6)
+        self.assertEqual(result['status'],'completed')
+        real=[x for x in result['trace'] if x.get('event')=='tool' and x.get('name')=='get_vercel_status']
+        self.assertEqual(len(real),3)
+        blocked=[x for x in result['trace'] if x.get('event')=='tool_blocked']
+        self.assertEqual([x['result']['error'] for x in blocked],['RETRY_EXHAUSTED'])
+        self.assertEqual(json.loads(p.histories[-1][-1]['content'])['error'],'RETRY_EXHAUSTED')
+
+    def test_blocked_calls_do_not_count_as_tool_calls(self):
+        t=BonusTools()
+        p=ScriptedProvider([call('a','get_npm_status',{}),call('b','get_npm_status',{}),final()])
+        result=run_agent('Kiểm tra npm',p,t,max_steps=5)
+        self.assertEqual(result['status'],'completed')
+        self.assertEqual(len([x for x in result['trace'] if x.get('event')=='tool']),1)
+        blocked=[x for x in result['trace'] if x.get('event')=='tool_blocked']
+        self.assertEqual([x['result']['error'] for x in blocked],['DUPLICATE_CALL'])
+
+    def test_rate_limit_final_is_nudged_to_retry(self):
+        t=BonusTools(scenario='rate_limit_always')
+        p=ScriptedProvider([call('a','get_vercel_status',{}),final('Vercel không xác định được'),call('b','get_vercel_status',{}),final('Vercel vẫn không xác định được')])
+        result=run_agent('Kiểm tra Vercel',p,t,max_steps=6)
+        self.assertEqual(result['status'],'completed')
+        self.assertEqual(len([x for x in result['trace'] if x.get('event')=='tool' and x.get('name')=='get_vercel_status']),2)
+
 if __name__=='__main__': unittest.main()

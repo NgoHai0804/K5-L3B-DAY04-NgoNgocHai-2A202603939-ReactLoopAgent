@@ -42,10 +42,33 @@ python evals/run_evals.py --bonus --case B4 --output bonus_b4.json
 
 ## Điều kiện hoàn thành (DoD)
 
-- [ ] Case B3/B4/B5/B10 không vượt `max_calls` và đạt `min_calls`.
-- [ ] Agent không tuyên bố Vercel outage khi nhận 429.
-- [ ] Khi 429 kéo dài, agent báo partial failure, không gọi vô hạn.
-- [ ] Khi `INVALID_ARGUMENTS`, agent gọi lại với `offset`/`limit` đúng integer.
+- [x] Case B3/B4/B5/B10 không vượt `max_calls` và đạt `min_calls`.
+- [x] Agent không tuyên bố Vercel outage khi nhận 429.
+- [x] Khi 429 kéo dài, agent báo partial failure, không gọi vô hạn.
+- [x] Khi `INVALID_ARGUMENTS`, agent gọi lại với `offset`/`limit` đúng integer.
+
+## Trạng thái kiểm chứng
+
+**Cơ chế đã thêm (`agent.py`):**
+- **Bounded retry:** hằng `RETRIABLE_RETRY_LIMIT = 3`. Chỉ truy vấn trả `retriable=True` (HTTP 429) được thử lại **cùng tham số**; mỗi cặp `(name, args)` thực thi tối đa 3 lần. Lần vượt hạn trả `RETRY_EXHAUSTED` và **không** gọi tool nữa (không gọi liên tục).
+- **Đếm call đúng:** trace chỉ ghi `event='tool'` khi tool **thực sự chạy**. Các call bị chặn (JSON sai, `DUPLICATE_CALL`, `RETRY_EXHAUSTED`) ghi `event='tool_blocked'` nên **không** bị tính vào `min_calls`/`max_calls`.
+- **Retry-nudge:** nếu model định kết thúc mà còn một truy vấn retriable chưa đạt tối thiểu 2 lần thử, loop chèn một message yêu cầu thử lại (tối đa một lần cho mỗi truy vấn) — đảm bảo `min_calls` khi 429 xảy ra ở lần gọi đầu.
+- **Prompt bonus (`bonus/tools.py`):** retry 429 tối đa 3 lần + honor `Retry-After`, bắt buộc nêu rõ đã gặp rate limit và đã thử lại, báo partial failure khi hết retry, sửa `INVALID_ARGUMENTS` rồi gọi lại.
+- **Không đổi hành vi bài chính:** `StatusTools` không bao giờ trả `retriable` → nhánh retry/nudge không kích hoạt.
+
+**Kết quả chạy live** (`openrouter` / `openai/gpt-4o-mini`, snapshot, `max_steps=16`):
+
+| Case | Ràng buộc | Thực tế | Vi phạm | Ghi chú |
+|---|---|---|---|---|
+| B3 | vercel 2–3 | 2 (`429` → OK) | none | retry chạy đúng |
+| B4 | vercel ≤ 3 | 3 (đều 429) + 1 blocked | none | dừng đúng, báo partial failure |
+| B5 | details ≥ 2 | 2 (`INVALID_ARGUMENTS` → OK) | none | sửa tham số rồi gọi lại |
+| B10 | vercel 2–3 | 2 (`429` → OK) | none | retry-nudge kích hoạt ở bước 3 |
+
+- Điểm judge tham khảo dao động (B3 ~55, B4 ~75, B5 ~75, B10 ~50) do nội dung câu trả lời/chất lượng judge, **không** phải lỗi cơ chế retry.
+- Một lần chạy B4 đầu tiên bị `IncompleteRead` (lỗi mạng của provider) → `unscored`; đã chạy lại và đạt OK. Lỗi hạ tầng không tính là lỗi agent.
+
+**Tests offline:** `python -m unittest discover -s tests -v` → `Ran 37 ... OK`; `python -m unittest discover -s bonus -p "test_*.py" -v` → `Ran 6 ... OK` (thêm `test_retriable_retry_is_bounded`, `test_blocked_calls_do_not_count_as_tool_calls`, `test_rate_limit_final_is_nudged_to_retry`).
 
 ## Bẫy thường gặp
 

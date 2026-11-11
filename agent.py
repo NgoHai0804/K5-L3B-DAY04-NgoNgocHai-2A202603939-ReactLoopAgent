@@ -73,6 +73,10 @@ SOURCE_REQUEST = (
     'Hãy bổ sung URL của các incident đã quan sát: {urls}'
 )
 
+# Số lần THỰC THI tối đa cho một truy vấn tool lỗi kiểu retriable (ví dụ HTTP 429).
+# Chỉ áp dụng cho kết quả có `retriable=True`; không đổi hành vi bài chính.
+RETRIABLE_RETRY_LIMIT = 3
+
 
 def run_agent(question, provider, tools, max_steps=6):
     """Trả dict: status, answer, trace, usage. Contract chi tiết trong GUIDE.md."""
@@ -87,6 +91,8 @@ def run_agent(question, provider, tools, max_steps=6):
     answer = ''
     observed_urls = set()
     seen_calls = {}
+    attempts = {}
+    retry_prompted = set()
     fetched_incident_ids = set()
     linked_incident_ids = set()
 
@@ -119,6 +125,14 @@ def run_agent(question, provider, tools, max_steps=6):
                 messages.append({'role': 'user', 'content': f'Incident có cập nhật dẫn sang incident liên quan "{target}". Hãy gọi get_incident_details(provider="github", incident_id="{target}") để đọc chi tiết, sau đó đối chiếu đầy đủ cả GitHub và Cloudflare (nếu câu hỏi yêu cầu) kèm nguồn của cả hai bên.'})
                 continue
 
+            pending_retry = [k for k, v in seen_calls.items() if v.get('retriable')
+                             and attempts.get(k, 0) < RETRIABLE_RETRY_LIMIT and k not in retry_prompted]
+            if pending_retry:
+                retry_name = pending_retry[0][0]
+                retry_prompted.add(pending_retry[0])
+                messages.append({'role': 'user', 'content': f'Tool "{retry_name}" vẫn trả lỗi tạm thời (rate limit). Hãy thử lại cùng truy vấn (tối đa {RETRIABLE_RETRY_LIMIT} lần); nếu vẫn lỗi, nêu rõ provider đó KHÔNG xác định được (partial failure) rồi kết luận với dữ liệu đã có.'})
+                continue
+
             answer = reply['message'].get('content') or ''
             if observed_urls and not any(url in answer for url in observed_urls):
                 trace.append({'event': 'validation_missing_source', 'step': step, 'observed_urls': sorted(observed_urls)})
@@ -129,6 +143,7 @@ def run_agent(question, provider, tools, max_steps=6):
         for call in calls:
             name = call.get('name')
             raw_args = call.get('arguments')
+            executed = False
             try:
                 args = json.loads(raw_args)
             except (json.JSONDecodeError, TypeError):
@@ -139,12 +154,16 @@ def run_agent(question, provider, tools, max_steps=6):
                 previous = seen_calls.get(key)
                 if previous is not None and not previous.get('retriable'):
                     result = {'ok': False, 'error': 'DUPLICATE_CALL', 'message': 'Tool call bị lặp; hãy thử cách khác hoặc trả lời với dữ liệu đã có.'}
+                elif attempts.get(key, 0) >= RETRIABLE_RETRY_LIMIT:
+                    result = {'ok': False, 'error': 'RETRY_EXHAUSTED', 'message': f'Đã thử {RETRIABLE_RETRY_LIMIT} lần và vẫn lỗi; dừng retry, báo rõ phần trạng thái không xác định được thay vì gọi tiếp.'}
                 else:
+                    executed = True
                     try:
                         result = tools.execute(name, args)
                     except Exception as exc:  # noqa: BLE001 - tool errors become observations
                         result = {'ok': False, 'error': type(exc).__name__, 'message': str(exc)[:200]}
                     seen_calls[key] = result
+                    attempts[key] = attempts.get(key, 0) + 1
 
             if name == 'get_incident_details' and isinstance(result, dict) and result.get('ok'):
                 if result.get('url'):
@@ -157,6 +176,6 @@ def run_agent(question, provider, tools, max_steps=6):
                         linked_incident_ids.add(matched_id)
 
             messages.append({'role': 'tool', 'tool_call_id': call.get('id'), 'content': json.dumps(result, ensure_ascii=False)})
-            trace.append({'event': 'tool', 'step': step, 'name': name, 'arguments': args, 'result': result})
+            trace.append({'event': 'tool' if executed else 'tool_blocked', 'step': step, 'name': name, 'arguments': args, 'result': result})
 
     return {'status': 'max_steps', 'answer': answer, 'trace': trace, 'usage': usage}
