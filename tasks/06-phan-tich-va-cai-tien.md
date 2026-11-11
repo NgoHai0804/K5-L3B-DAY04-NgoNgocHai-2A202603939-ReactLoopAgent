@@ -81,6 +81,7 @@ Vẫn **phải** hoàn thành contract kiểm tra nguồn trong `tests/test_vali
   - Nếu answer đã chứa URL, hoặc **không** có incident thành công → `completed` như bình thường.
 - Hết `max_steps` khi vẫn đang chờ sửa nguồn → `status='max_steps'` (không báo `completed`).
 - Kỳ vọng: A7 sẽ được nhắc chèn URL `.../incidents/c60k3g4vsoc1`; điểm evidence tăng ở lần eval 2.
+- **Kết quả lần eval 2 (`eval_after.json`):** answer A7 đã dẫn URL nguồn đã quan sát (`ans_has_url=True`) và A7 tăng 75→80 (completeness 20→25); `evidence` vẫn 15/20 vì judge trừ ở tiêu chí khác (thiếu thận trọng khi nêu khả năng ảnh hưởng), không phải do thiếu URL.
 
 ### 5. Giới hạn của cải tiến
 - Chỉ kiểm tra **sự hiện diện** của một URL đã quan sát, **không** chứng minh mọi claim đều có nguồn.
