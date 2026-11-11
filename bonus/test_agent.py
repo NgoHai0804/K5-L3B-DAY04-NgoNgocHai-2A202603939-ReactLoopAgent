@@ -35,7 +35,8 @@ class BonusAgentTests(unittest.TestCase):
         self.assertIn('DigitalOcean',p.histories[0][0]['content'])
     def test_429_observation_returns_to_model(self):
         t=BonusTools(scenario='rate_limit_once')
-        p=ScriptedProvider([call('a','get_vercel_status',{}),call('b','get_vercel_status',{}),final()])
+        p=ScriptedProvider([call('a','get_vercel_status',{}),call('b','get_vercel_status',{}),final(),
+                            final('Đã gặp rate limit 429 ở lần gọi đầu, đã thử lại 1 lần và lần sau thành công.')])
         result=run_agent('Kiểm tra',p,t,max_steps=5)
         self.assertEqual(result['status'],'completed')
         self.assertEqual(json.loads(p.histories[1][-1]['content'])['error'],'RATE_LIMITED')
@@ -45,7 +46,8 @@ class BonusAgentTests(unittest.TestCase):
         bad={'provider':'npm','incident_id':'cc0t2r4403sy','offset':'zero'}
         good={'provider':'npm','incident_id':'cc0t2r4403sy','offset':0}
         details=t.execute('get_incident_details',good)
-        p=ScriptedProvider([call('a','get_incident_details',bad),call('b','get_incident_details',good),final('Nguồn: '+details['url'])])
+        p=ScriptedProvider([call('a','get_incident_details',bad),call('b','get_incident_details',good),final('Nguồn: '+details['url']),
+                            final('Lần đầu lỗi định dạng tham số offset/limit, đã sửa và gọi lại thành công. Nguồn: '+details['url'])])
         result=run_agent('Kiểm tra',p,t,max_steps=5)
         self.assertEqual(result['status'],'completed')
         self.assertEqual(json.loads(p.histories[1][-1]['content'])['error'],'INVALID_ARGUMENTS')

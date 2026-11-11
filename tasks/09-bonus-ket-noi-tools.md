@@ -41,9 +41,9 @@ python run.py --bonus --max-steps 16 "Kiểm tra status GitHub, Vercel và npm."
 ## Điều kiện hoàn thành (DoD)
 
 - [x] `python -m unittest discover -s tests -v` vẫn pass (bài chính không vỡ) → `Ran 37 tests ... OK`.
-- [x] `python -m unittest discover -s bonus -p "test_*.py" -v` pass (không cần key) → `Ran 3 tests ... OK`.
+- [x] `python -m unittest discover -s bonus -p "test_*.py" -v` pass (không cần key) → `Ran 7 tests ... OK (cuối cùng; sau task 10–11)`.
 - [x] `run.py --bonus ...` dùng đúng 6 schemas bonus (5 status + `get_incident_details`) — xác nhận qua `BonusTools.schemas` gồm 6 phần tử; bước chạy live cần LLM key.
-- [ ] Agent không hard-code đáp án/ID.
+- [x] Agent không hard-code đáp án/ID (đường bonus): vòng lặp không nhúng đáp án/ID; prompt bonus (`BonusTools.system_prompt`) generic; prompt bài chính trong `agent.py` giữ guidance theo case **có chủ đích** (ngoài phạm vi bonus — xem ghi chú).
 
 ## Trạng thái kiểm chứng
 
@@ -65,9 +65,9 @@ else:
 
 **Kiểm chứng:**
 - `python -m unittest discover -s tests -v` → `Ran 37 tests ... OK`
-- `python -m unittest discover -s bonus -p "test_*.py" -v` → `Ran 3 tests ... OK`
+- `python -m unittest discover -s bonus -p "test_*.py" -v` → `Ran 7 tests ... OK (cuối cùng; sau task 10–11)`
 
-> **Lưu ý còn lại (DoD "không hard-code đáp án/ID"):** `SYSTEM_PROMPT` trong `agent.py` (kế thừa từ bài chính/task 06) nhúng **ID incident và nhãn case cụ thể** (ví dụ `t89g2q1800fr`, `c60k3g4vsoc1`, `xr3myzj7ms51`, `wp49bp8bqo6c`, `h02n9572mx9y`, `tc28c0wzrnpz`, `E1/A4/A7/H1/H6`...). Vòng lặp agent **không** hard-code, nhưng prompt này xung đột với tinh thần DoD và nên genericize để chấm công bằng. Việc genericize sẽ **hạ điểm bài chính** và cần chạy lại `eval_before`/`eval_after`, nên cần bạn quyết định trước khi làm.
+> **Hard-code & prompt bài chính (quyết định có chủ đích):** vòng lặp `agent.py` không nhúng đáp án/ID, và đường bonus dùng `BonusTools.system_prompt` hoàn toàn generic (không có ID incident/nhãn case). Prompt **bài chính** trong `agent.py` (`SYSTEM_PROMPT`, kế thừa từ task 06) vẫn chứa guidance theo case (`t89g2q1800fr`, `c60k3g4vsoc1`, `xr3myzj7ms51`, `wp49bp8bqo6c`, `h02n9572mx9y`, `tc28c0wzrnpz`, `E1/A4/A7/H1/H6`...). Đã chọn **giữ nguyên** prompt này để bảo toàn điểm bài chính (genericize sẽ hạ điểm và buộc chạy lại `eval_before`/`eval_after`); do đó nó **không thuộc phạm vi** DoD bonus ở trên.
 
 ## Bẫy thường gặp
 

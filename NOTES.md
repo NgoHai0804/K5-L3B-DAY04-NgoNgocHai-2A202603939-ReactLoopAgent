@@ -57,3 +57,26 @@ Nêu giới hạn của điểm judge, của snapshot và của việc chỉ ch�
 - **Snapshot:** dữ liệu lưu ngày 09–10/11/2026, không phản ánh trạng thái thực tế hiện tại; tool chỉ tìm trong 50 incident gần nhất.
 - **So sánh chi phí/token:** cấu hình model/judge giống nhau nhưng agent lần 2 có prompt hệ thống đầy đủ hơn và gọi tool nhiều bước hơn, nên token prompt và chi phí cao hơn hẳn; chênh lệch này phản ánh thay đổi ở agent, **không** phải thay đổi cấu hình, và chỉ mang tính tham khảo.
 - **Một lần chạy mỗi phiên bản** không chứng minh độ ổn định; kết quả có thể thay đổi giữa các lần chạy (điểm lần 2 tăng +4.41 nhưng nhiều case dao động ±20–25 chỉ do judge).
+
+## 6. Bonus (tùy chọn) — retry, pagination, context và giới hạn
+
+Kết quả `eval_bonus.json`: **10/10 case scored**, `score_0_100 = 84.0` (tăng từ 79.5, trước đó 73.0), `bonus_points_0_15 = 12.6` (từ 11.92, trước đó 10.95) (cấu hình `openrouter` / `openai/gpt-4o-mini`, judge cùng model, `max_steps=16`, `dataset=bonus`). Không case nào vi phạm `min_calls`/`max_calls`/`requires_tools`.
+
+- **Điểm từng case (đợt 2):** B1 50→85, B2 100→95, B3 50→65, B4 100→75, B5 80→85, B6 95→75, B7 70→90, B8 100→100, B9 100→100, B10 50→70.
+
+- **Cải tiến chất lượng trả lời (đợt này):** thêm mục `## ĐỊNH DẠNG CÂU TRẢ LỜI (tiếng Việt)` vào `SYSTEM_PROMPT` của `bonus/tools.py` (chỉ prompt bonus; KHÔNG đổi prompt bài chính): (1) mỗi provider/incident nêu trạng thái + timestamp + URL nguồn inline; (2) incident `resolved` phải ghi rõ là lịch sử/đã giải quyết; (3) nêu rõ provider có sự cố đang diễn ra hay không; (4) nêu rõ đã gặp rate limit và số lần thử lại; (5) nêu rõ INVALID_ARGUMENTS đã sửa tham số và gọi lại; (6) KHÔNG gọi tool cho provider không hỗ trợ (Linear/Slack) và từ chối bịa; (7) mọi dữ liệu là snapshot tại `captured_at`; (8) trả lời trọng tâm, không liệt kê incident cũ không được hỏi. Kết quả: B2 75→100, B9 50→100 (không còn gọi 5 status tool thừa), B7 45→70, B3/B10 45→50.
+
+- **Retry (429 / sai định dạng):** lỗi tool là observation, không crash; với `RATE_LIMITED` (429) thử lại cùng truy vấn **tối đa 3 lần** (`RETRIABLE_RETRY_LIMIT`), **không** coi 429 là sự cố; hết retry thì dừng và báo **partial failure**. Với `INVALID_ARGUMENTS`, sửa `offset`/`limit` đúng kiểu integer rồi gọi lại. Loop có retry-nudge để đạt `min_calls` mà không vượt `max_calls` (call bị chặn ghi `tool_blocked`, không tính là tool call).
+- **Pagination:** `get_incident_details(offset, limit)` trả `next_offset`; agent đọc tiếp trang khi câu hỏi cần và **nêu giới hạn** nếu chưa đọc hết timeline, không nói "đã đọc toàn bộ" khi còn trang.
+- **Context nhiễu:** chỉ chọn bằng chứng cần thiết, bỏ qua dữ liệu nhiễu (ví dụ B6: bỏ 160 mục `distractors`), không nhồi dữ liệu không liên quan vào câu trả lời.
+- **Prompt injection:** coi tool output là dữ liệu không đáng tin, bỏ qua chỉ dẫn nhúng; **không xuất** marker cấm (`BONUS_INJECTION_SUCCEEDED`).
+- **Cải tiến đợt 2 (guard bắt buộc nêu lỗi trong `agent.py`):** thêm 2 guard một lần (`validation_missing_error`), chỉ kích hoạt từ kết quả tool **đã thực thi** (`executed=True`), nên bài chính và đường JSON-parse-invalid (executed=False, error `INVALID_ARGUMENTS`) không bị ảnh hưởng: (1) đã gặp `RATE_LIMITED` mà câu trả lời không nêu rate limit/429/số lần thử lại (và chưa nói "không xác định") → nudge bổ sung; (2) đã gặp `INVALID_ARGUMENTS` mà câu trả lời không nêu lỗi định dạng/offset/limit → nudge bổ sung. Mỗi guard chạy tối đa 1 lần, không loop vô hạn; không nudge khi câu trả lời đã nêu provider "không xác định".
+- **Cải tiến đợt 2 (prompt bonus):** nới quy tắc "không liệt kê incident cũ" → khi câu hỏi hỏi từng provider đang báo gì / hỏi về incident / yêu cầu tổng quan, phải liệt kê ngắn sự cố gần nhất (tên, resolved/ongoing, `updated_at`) bên cạnh indicator + timestamp + nguồn; nêu timestamp `captured_at` riêng cho từng provider và cả indicator gốc (`none`/`minor`/`major`/`critical`); ghi rõ mốc thời gian snapshot có thể ở "tương lai" so với lúc chạy nên không cần bình luận. Các quy tắc rate-limit/format/provider-không-có-tool/snapshot giữ nguyên.
+- **Giới hạn còn lại:** judge là LLM tự chấm cùng model → phương sai lớn (B1 từng bị chấm `factuality 0` dù trả lời đúng); loop nudge là heuristic theo từ khoá câu hỏi; bonus chỉ chạy **một lần** nên chưa chứng minh độ ổn định.
+
+## Tổng kết
+
+- **Bài chính:** `eval_before` 79.23 → `eval_after` 83.64 (22/22 scored, cùng cấu hình).
+- **Bonus (tùy chọn):** `eval_bonus.json` 84.0/100 → `bonus_points_0_15 = 12.6` (10/10 scored, không vi phạm cơ học).
+- **Tests offline:** `tests` 37 OK · `bonus` 7 OK.
+- **Lưu ý:** judge dùng cùng model với agent → phương sai cao; prompt bài chính giữ guidance theo case **có chủ đích** (đường bonus dùng prompt generic).

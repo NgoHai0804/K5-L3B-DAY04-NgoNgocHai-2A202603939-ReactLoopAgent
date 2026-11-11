@@ -68,7 +68,7 @@ python evals/run_evals.py --bonus --case B4 --output bonus_b4.json
 - Điểm judge tham khảo dao động (B3 ~55, B4 ~75, B5 ~75, B10 ~50) do nội dung câu trả lời/chất lượng judge, **không** phải lỗi cơ chế retry.
 - Một lần chạy B4 đầu tiên bị `IncompleteRead` (lỗi mạng của provider) → `unscored`; đã chạy lại và đạt OK. Lỗi hạ tầng không tính là lỗi agent.
 
-**Tests offline:** `python -m unittest discover -s tests -v` → `Ran 37 ... OK`; `python -m unittest discover -s bonus -p "test_*.py" -v` → `Ran 6 ... OK` (thêm `test_retriable_retry_is_bounded`, `test_blocked_calls_do_not_count_as_tool_calls`, `test_rate_limit_final_is_nudged_to_retry`).
+**Tests offline:** `python -m unittest discover -s tests -v` → `Ran 37 ... OK`; `python -m unittest discover -s bonus -p "test_*.py" -v` → `Ran 7 ... OK` (cuối cùng; đợt này thêm `test_retriable_retry_is_bounded`, `test_blocked_calls_do_not_count_as_tool_calls`, `test_rate_limit_final_is_nudged_to_retry`; task 11 thêm 1 test nữa).
 
 ## Bẫy thường gặp
 

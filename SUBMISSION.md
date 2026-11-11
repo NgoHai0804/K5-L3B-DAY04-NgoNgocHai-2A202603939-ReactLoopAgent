@@ -50,9 +50,9 @@ Hạn trên áp dụng trừ khi key coach thông báo khác trong vòng 48 gi�
 
 ## Checklist trước khi nộp
 
-- [ ] `python3 -m unittest discover -s tests -v` không còn test lỗi.
-- [ ] `eval_before.json` và `eval_after.json` cùng agent model, judge model, snapshot, max steps và dataset.
-- [ ] `NOTES.md` đã điền đủ 5 mục.
-- [ ] Repo không chứa `.env` hay API key. Kiểm tra bằng `git ls-files | grep .env`, chỉ được thấy `.env.example`.
-- [ ] Tên repo đúng quy tắc, đã thay `[HoVaTen]` và `[MSSV]`, mở được link khi chưa đăng nhập.
+- [x] `python3 -m unittest discover -s tests -v` không còn test lỗi. (`37 OK`; bonus `7 OK`)
+- [x] `eval_before.json` và `eval_after.json` cùng agent model, judge model, snapshot, max steps và dataset.
+- [x] `NOTES.md` đã điền đủ 5 mục (thêm mục 6 cho bonus).
+- [x] Repo không chứa `.env` hay API key. Kiểm tra bằng `git ls-files | grep .env`, chỉ được thấy `.env.example`.
+- [ ] Tên repo đúng quy tắc, đã thay `[HoVaTen]` và `[MSSV]`, mở được link khi chưa đăng nhập. (cần đổi tên thành `K5-L3A-DAY04-NgoNgocHai-2A202603939-ReactLoopAgent`)
 - [ ] Đã dán link repo lên LMS trước hạn.

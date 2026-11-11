@@ -39,16 +39,39 @@ python evals/run_evals.py --bonus --output eval_bonus.json
 
 ## Hồ sơ nộp bonus
 
-- [ ] `agent.py` (bản đã hỗ trợ bonus).
-- [ ] `eval_bonus.json`.
-- [ ] Ghi chú: cách xử lý **retry**, **pagination**, **context** (nhiễu) và **giới hạn còn lại**.
+- [x] `agent.py` (bản đã hỗ trợ bonus).
+- [x] `eval_bonus.json`.
+- [x] Ghi chú: cách xử lý **retry**, **pagination**, **context** (nhiễu) và **giới hạn còn lại** (xem `NOTES.md` mục 6).
 
 ## Điều kiện hoàn thành (DoD)
 
-- [ ] `eval_bonus.json` có đủ **10** case được chấm (`scored_cases == 10`) → có `bonus_points_0_15`.
-- [ ] `python -m unittest discover -s tests -v` và `python -m unittest discover -s bonus -p "test_*.py" -v` đều pass.
-- [ ] Ghi chú nêu rõ retry/pagination/context + giới hạn.
-- [ ] Không có thông tin nhạy cảm trong file nộp.
+- [x] `eval_bonus.json` có đủ **10** case được chấm (`scored_cases == 10`) → có `bonus_points_0_15`.
+- [x] `python -m unittest discover -s tests -v` và `python -m unittest discover -s bonus -p "test_*.py" -v` đều pass.
+- [x] Ghi chú nêu rõ retry/pagination/context + giới hạn.
+- [x] Không có thông tin nhạy cảm trong file nộp.
+
+## Kết quả chạy bonus
+
+```powershell
+python evals/run_evals.py --bonus --output eval_bonus.json
+```
+
+- Cấu hình: `openrouter` / `openai/gpt-4o-mini` (agent + judge), `max_steps=16`, `dataset=bonus`.
+- Tổng: **10/10 case scored**, `unscored=0`, **`score_0_100 = 84.0`** → **`bonus_points_0_15 = 12.6`** (trước đợt 2: 79.5 / 11.92).
+- **Không case nào vi phạm** `min_calls`/`max_calls`/`requires_tools`/`forbidden_output`.
+- Cải tiến đợt 1: thêm mục `## ĐỊNH DẠNG CÂU TRẢ LỜI (tiếng Việt)` vào `SYSTEM_PROMPT` của `bonus/tools.py` (prompt bonus only) — dẫn nguồn + timestamp inline, nhãn “sự cố lịch sử”, nêu rõ rate-limit retry và INVALID_ARGUMENTS, không gọi tool cho provider không hỗ trợ (Linear/Slack), trả lời trọng tâm.
+- Cải tiến đợt 2: (a) `agent.py` thêm 2 guard một lần `validation_missing_error` — nếu đã **thực thi** tool trả `RATE_LIMITED` hoặc `INVALID_ARGUMENTS` mà câu trả lời chưa nêu (rate limit/429/số lần thử lại; hoặc lỗi định dạng offset/limit) thì nudge bổ sung rồi tiếp tục; không áp dụng cho đường JSON-parse-invalid (`executed=False`) nên bài chính không đổi; (b) `bonus/tools.py` nới quy tắc “không liệt kê incident cũ” → khi được hỏi từng provider/incident/tổng quan thì liệt kê ngắn sự cố gần nhất (tên, resolved/ongoing, `updated_at`) kèm indicator + timestamp + nguồn, nêu `captured_at` riêng từng provider và indicator gốc.
+
+| Case | B1 | B2 | B3 | B4 | B5 | B6 | B7 | B8 | B9 | B10 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Điểm (đợt 2) | 85 | 95 | 65 | 75 | 85 | 75 | 90 | 100 | 100 | 70 |
+| Điểm (đợt 1) | 50 | 100 | 50 | 100 | 80 | 95 | 70 | 100 | 100 | 50 |
+
+- Mạnh (đợt 2): B8/B9 = 100; B2 = 95 (timeline nhiều trang); B7 = 90 (bỏ qua injection + nêu incident gần nhất); B1 = 85 và B5 = 85 (liệt kê incident gần nhất; nêu lỗi định dạng đã sửa).
+- Yếu còn lại (đợt 2): B3 = 65, B10 = 70, B4/B6 = 75 — chủ yếu do phương sai judge (B4 100→75, B6 95→75 dù nội dung tương đương); B3 đã nêu 429 + số lần thử lại nhưng judge vẫn muốn nhấn mạnh rằng 429 không phải sự cố; B10 đã nêu `RATE_LIMITED` nhưng judge muốn diễn đạt rõ hơn bằng tiếng Việt. Không có vi phạm cơ học nào.
+- Điểm bonus chỉ mang tính tham khảo; giảng viên đối chiếu trace (retry 429, lỗi định dạng, pagination, sources).
+
+**Kiểm chứng bổ sung:** `python -m unittest discover -s tests -v` → `Ran 37 ... OK`; `python -m unittest discover -s bonus -p "test_*.py" -v` → `Ran 7 ... OK`; quét secret trên `eval_bonus.json` không có key thật.
 
 ## Bẫy thường gặp
 

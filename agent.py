@@ -98,6 +98,9 @@ def run_agent(question, provider, tools, max_steps=6):
     detail_nudged = False
     fetched_incident_ids = set()
     linked_incident_ids = set()
+    saw_rate_limit = False
+    saw_invalid_args = False
+    error_nudges = set()
 
     for step in range(1, max_steps + 1):
         try:
@@ -148,6 +151,23 @@ def run_agent(question, provider, tools, max_steps=6):
                 trace.append({'event': 'validation_missing_source', 'step': step, 'observed_urls': sorted(observed_urls)})
                 messages.append({'role': 'user', 'content': SOURCE_REQUEST.format(urls=', '.join(sorted(observed_urls)))})
                 continue
+
+            lower_answer = answer.casefold()
+            if (saw_rate_limit and 'rate_limit' not in error_nudges
+                    and 'không xác định' not in lower_answer
+                    and not any(token in lower_answer for token in ('rate limit', '429', 'rate-limit', 'giới hạn', 'thử lại'))):
+                error_nudges.add('rate_limit')
+                trace.append({'event': 'validation_missing_error', 'step': step, 'error': 'RATE_LIMITED'})
+                messages.append({'role': 'user', 'content': 'Câu trả lời chưa nêu rằng một tool đã gặp rate limit (HTTP 429). Không cần gọi thêm tool; hãy bổ sung ngắn gọn: đã gặp rate limit, đã thử lại bao nhiêu lần, và kết quả sau cùng (hoặc nêu rõ trạng thái provider đó KHÔNG xác định được nếu vẫn lỗi). Sau đó trả lời hoàn chỉnh.'})
+                continue
+
+            if (saw_invalid_args and 'invalid_args' not in error_nudges
+                    and not any(token in lower_answer for token in ('định dạng', 'invalid_arguments', 'tham số', 'offset', 'limit'))):
+                error_nudges.add('invalid_args')
+                trace.append({'event': 'validation_missing_error', 'step': step, 'error': 'INVALID_ARGUMENTS'})
+                messages.append({'role': 'user', 'content': 'Câu trả lời chưa nêu rằng một tool đã báo lỗi định dạng tham số (offset/limit). Không cần gọi thêm tool; hãy bổ sung ngắn gọn rằng đã gặp lỗi định dạng tham số offset/limit, đã sửa lại đúng kiểu và gọi lại thành công, kèm kết quả. Sau đó trả lời hoàn chỉnh.'})
+                continue
+
             return {'status': 'completed', 'answer': answer, 'trace': trace, 'usage': usage}
 
         for call in calls:
@@ -187,6 +207,11 @@ def run_agent(question, provider, tools, max_steps=6):
 
             if executed:
                 executed_names.add(name)
+                if isinstance(result, dict):
+                    if result.get('error') == 'RATE_LIMITED':
+                        saw_rate_limit = True
+                    elif result.get('error') == 'INVALID_ARGUMENTS':
+                        saw_invalid_args = True
             if isinstance(result, dict):
                 for incident in result.get('incidents') or []:
                     if isinstance(incident, dict) and incident.get('id'):

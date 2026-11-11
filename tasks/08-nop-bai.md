@@ -56,6 +56,7 @@ Select-String -Path agent.py, eval_before.json, eval_after.json -Pattern "sk-", 
 | Cùng cấu hình 2 file eval | Khớp | `config` trùng: `openrouter` / `openai/gpt-4o-mini` (agent + judge), `max_steps=8`, `dataset=core` |
 | Secret trong file nộp | Không có | `Select-String` trên `agent.py`, `eval_before.json`, `eval_after.json`, `NOTES.md`: chỉ false positive |
 | `.env` | Không track | `git ls-files` chỉ thấy `.env.example` |
+| `eval_bonus.json` (bonus, tùy chọn) | Hợp lệ | 10/10 scored, `score_0_100=84.0`, `bonus_points_0_15=12.6`, không vi phạm cơ học |
 
 ## Demo
 
@@ -81,7 +82,9 @@ step 3 MODEL finish=stop  -> final answer kèm URL cả hai dịch vụ
 ## Việc còn lại (cần bạn thực hiện)
 
 - **Đổi tên repo** về đúng quy ước: `K5-L3A-DAY04-NgoNgocHai-2A202603939-ReactLoopAgent` (dùng `L3B` nếu bạn thuộc lớp L3B). Repo hiện tại: `NgoHai0804/K5-L3-Day4-ReactLoopAgent`.
-- **Commit & push** các thay đổi: `agent.py`, `NOTES.md`, `tasks/06-phan-tich-va-cai-tien.md`, `tasks/07-chay-eval-lan-2.md`, `tasks/08-nop-bai.md`, `eval_after.json`.
+- **Commit & push** toàn bộ thay đổi chưa commit: `agent.py`, `bonus/tools.py`, `bonus/test_agent.py`, `eval_bonus.json` (bonus), `NOTES.md`, và các task doc `tasks/06`–`tasks/12`.
+- **Chạy lại cả hai bộ test trước khi nộp**: `python -m unittest discover -s tests -v` (37 OK) và `python -m unittest discover -s bonus -p "test_*.py" -v` (7 OK).
+- **Bonus (tùy chọn):** nộp kèm `eval_bonus.json` + ghi chú `NOTES.md` mục 6.
 - **Xóa/rotate key** trong `.env` (đang ở plaintext cục bộ; đã gitignore nên không vào repo, nhưng key thật thì nên thu hồi).
 - **Dán link repo lên LMS** (https://aithucchien.vinuni.edu.vn) trước hạn.
 
